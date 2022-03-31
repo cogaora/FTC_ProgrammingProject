@@ -121,6 +121,46 @@ def get_edges(cycle, r):
 
 	return rels
 
+def get_edges_not_in_cycle(cycles, graph, r):
+	noncycleEdges = np.ones((6,6))
+	for k in range(len(cycles)):
+		for i in range(len(graph[0])):
+			for j in range(len(graph[0])):
+				if i in cycles[k] and j in cycles[k] or graph[i][j]==0:
+					noncycleEdges[i][j]=0
+
+	rels = []
+	for i in range(len(graph[0])):
+		for j in range(len(graph[0])):
+			if noncycleEdges[i][j]==1:
+				rels.append(r[i][j])
+
+
+	# print(noncycleEdges)
+	return noncycleEdges, rels
+
+def get_cycles_reliability(cycles, r):
+	l = len(cycles)
+	rel = np.zeros(l)
+	for i in range(l):
+		edges = get_edges(cycles[i], r)
+		# print(edges)
+		# Add reliability for when one edge in cycle does not work
+		for edge in range(len(edges)):
+			r_it = 1
+			for edge2 in range(len(edges)):
+				if edge == edge2:
+					r_it *= (1 - edges[edge])
+				else:
+					r_it *= edges[edge2]
+			rel[i] += r_it
+		# Add reliability for when all edges work
+		r_it = 1
+		for edge in range(len(edges)):
+			r_it *= edges[edge]
+
+		rel[i] += r_it
+	return rel
 
 def find_best(graph, n_cities, r, c):
 	G = nx.Graph()
@@ -132,32 +172,12 @@ def find_best(graph, n_cities, r, c):
 	G.add_edge(0, 5)
 	# G.add_edge(3, 4)
 	# G.add_edge(2, 5)
-	#
+
 	cycles = nx.cycle_basis(G, root=None)
-	l = len(cycles)
-	print(cycles[0])
-	# rels = get_edges(cycles[0], r)
-
-
-	rel = np.zeros(l)
-	for i in range (l):
-		edges = get_edges(cycles[i], r)
-		# print(edges)
-		# Add reliability for when one edge in cycle does not work
-		for edge in range(len(edges)):
-			r_it=1
-			for edge2 in range(len(edges)):
-				if edge == edge2:
-					r_it *= (1-edges[edge])
-				else:
-					r_it *= edges[edge2]
-			rel[i] += r_it
-		# Add reliability for when all edges work
-		r_it = 1
-		for edge in range(len(edges)):
-			r_it*=edges[edge]
-
-		rel[i] += r_it
+	rel = get_cycles_reliability(cycles, r)
+	noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles,graph, r)
+	print(noncycleEdges)
+	print(noncycleRels)
 
 	print(rel)
 
