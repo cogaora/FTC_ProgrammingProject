@@ -1,3 +1,7 @@
+import numpy as np
+import networkx as nx
+
+
 
 with open('input.txt') as f:
 	lines = f.readlines()
@@ -31,15 +35,15 @@ costs = formatted_data[2]
 relcount = 0
 start = 1
 
-# rel_mat = np.zeros((6,6))
-# cost_mat = np.zeros((6,6))
+rel_mat = np.zeros((6,6))
+cost_mat = np.zeros((6,6))
 relMap = []
 costMap = []
 
 for i in range(n_cities):
 	for j in range(start, n_cities):
-		# rel_mat[i][j] = reliabilities[relcount]
-		relMap.append((i,j,reliabilities[relcount]))
+		rel_mat[i][j] = reliabilities[relcount]
+		relMap.append((i, j, reliabilities[relcount]))
 		# print(rel_mat[i][j])
 		relcount += 1
 	start += 1
@@ -49,9 +53,9 @@ start = 1
 
 for i in range(n_cities):
 	for j in range(start, n_cities):
-		# cost_mat[i][j] = costs[relcount]
+		cost_mat[i][j] = costs[relcount]
 		# print(cost_mat[i][j])
-		costMap.append((i,j,costs[relcount]))
+		costMap.append((i, j, costs[relcount]))
 		relcount += 1
 	start += 1
 
@@ -79,43 +83,137 @@ def print_graph(graph):
    		for e in graph[v]:
    			print(v, " -> ", e[0], " edge weight: ", e[1])
 
+
 def check_cyclic(graph, n_nodes, vertex):
 	visited = [False for i in range(n_nodes)]
-	if visited[graph[v]]:
+	if visited[graph[vertex]]:
 		return False
 
-def connect_cities(r, cost, n_cities, rels, costs):
-	graph = {}
-
-	rels.sort(key=lambda tup: tup[2], reverse=True)
-	costs.sort(key=lambda tup: tup[2], reverse=True)
-	# print(rels)
+def find_r(graph, n_cities, r, c):
+	H = graph
+	cycles = nx.cycle_basis(H, root=None)
+	l = len(cycles)
 
 	for i in range(n_cities):
-		add_v(i, graph)
+		for j in range(n_cities):
+			if graph[i][j] == 1.0:
+				if l > 1:
+					H.remove_edge(i, j)
+					cycles = nx.cycle_basis(H, root=None)
+					if len(cycles) == l-1:
+						continue
+					else:
+						H.add_edge(i, j)
 
-	edges = []
-	n_edges = n_cities - 1
+def get_edges(cycle, r):
+	rels = np.zeros(len(cycle))
+	for e in range(len(cycle)):
+		if e == len(cycle)-1:
+			if cycle[e] < cycle[0]:
+				rels[e] = r[cycle[e]][cycle[0]]
+			else:
+				rels[e] = r[cycle[0]][cycle[e]]
+		else:
+			if cycle[e] < cycle[e + 1]:
+				rels[e] = r[cycle[e]][cycle[e + 1]]
+			else:
+				rels[e] = r[cycle[e + 1]][cycle[e]]
+
+	return rels
+
+
+def find_best(graph, n_cities, r, c):
+	G = nx.Graph()
+	for i in range(n_cities):
+		for j in range(n_cities):
+			if graph[i][j] == 1.0:
+				G.add_edge(i, j)
+
+	G.add_edge(0, 5)
+	# G.add_edge(3, 4)
+	# G.add_edge(2, 5)
+	#
+	cycles = nx.cycle_basis(G, root=None)
+	l = len(cycles)
+	print(cycles[0])
+	# rels = get_edges(cycles[0], r)
+
+
+	rel = np.zeros(l)
+	for i in range (l):
+		edges = get_edges(cycles[i], r)
+		# print(edges)
+		# Add reliability for when one edge in cycle does not work
+		for edge in range(len(edges)):
+			r_it=1
+			for edge2 in range(len(edges)):
+				if edge == edge2:
+					r_it *= (1-edges[edge])
+				else:
+					r_it *= edges[edge2]
+			rel[i] += r_it
+		# Add reliability for when all edges work
+		r_it = 1
+		for edge in range(len(edges)):
+			r_it*=edges[edge]
+
+		rel[i] += r_it
+
+	print(rel)
+
+def connect(r, cost, n_cities, rels, costs, visited):
+	graph = np.zeros((6,6))
+
+	ind = np.dstack(np.unravel_index(np.argsort((-rels).ravel()), (6, 6)))
+	ind = ind[0]
+
 	edge_count = 0
-	nodes = [0 for i in range(n_cities)]
 
-	for edge in rels:
-		if nodes[edge[0]] > 0 and nodes[edge[1]] > 0:
+	for edge in range(18):
+		if visited[ind[edge][0]] == True and visited[ind[edge][1]] == True:
 			continue
 		elif edge_count == 5:
 			break
 		else:
-			edges.append(edge)
+			graph[ind[edge][0]][ind[edge][1]] = 1;
+			# graph[ind[edge][1]][ind[edge][0]] = 1;
 			edge_count+=1
-			nodes[edge[0]] += 1
-			nodes[edge[1]] += 1
+			visited[ind[edge][0]] = True
+			visited[ind[edge][1]] = True
 
-	print(edges)
+	print(graph)
+	# print_graph(graph)
+
+	total_reliability = 1
+	total_cost = 0
+	for i in range(n_cities):
+		for j in range(n_cities):
+			if graph[i][j] == 1.0:
+				total_reliability *= rels[i][j]
+				total_cost += costs[i][j]
+
+	return graph, total_reliability, total_cost;
 
 
+print(cost_mat)
+print(rel_mat)
 
-	print_graph(graph)
+visited = [False for i in range(n_cities)]
 
-connect_cities(0.9, 50, n_cities, relMap, costMap)
+g, r, c = connect(0.9, 50, n_cities, rel_mat, cost_mat, visited)
 
+print(g)
+print(r)
+print(c)
+
+find_best(g, n_cities, rel_mat, cost_mat)
+
+# G = nx.Graph()
+# G.add_edges_from([[1,2],[2,3],[3,1],[4,5]])
+#
+# components = []
+# for graph in nx.connected_components(G):
+#   components.append([graph, len(graph)])
+#
+# print(components)
 
