@@ -1,8 +1,6 @@
 import numpy as np
 import networkx as nx
 
-
-
 with open('input.txt') as f:
 	lines = f.readlines()
 
@@ -89,7 +87,87 @@ def check_cyclic(graph, n_nodes, vertex):
 	if visited[graph[vertex]]:
 		return False
 
-# def network_reliability(graph, r):
+def makeNXgraph(g):
+	G = nx.Graph()
+	start = 1;
+	for i in range(n_cities):
+		for j in range(start, n_cities):
+			if g[i][j] == 1.0:
+				G.add_edge(i, j)
+		start += 1
+
+	return G
+
+# Recursive function decomposes a graph into sub graphs
+
+def network_reliability(G, graph, r, n_cities):
+	cycles = nx.cycle_basis(G, root=None)
+	_, nonCycleRels = get_edges_not_in_cycle(cycles, graph, r, n_cities)
+	numNonCycleEdges = len(nonCycleRels)
+	cycles = nx.cycle_basis(G, root=None)
+	numCycles = len(cycles)
+
+	# R1 will be the reliability of the subgraph where the removed edge does not work
+	# R2 will be the reliability of the subgraph where the removed edge does work
+	# R will be the weighted average of each Rn
+
+	R1 = 0
+	R2 = 0
+	R = 1
+
+	s = 0
+	count = 0
+	for i in range(n_cities):
+		for j in range(s, n_cities):
+			if graph[i][j] == 1.0:
+				T = G
+				T.remove_edge(i, j)
+				t_graph = graph
+				t_r = r
+				t_graph[i][j] = 0
+				temp_cycles = nx.cycle_basis(T, root=None)
+				temp_numCycles = len(temp_cycles)
+				_, temp_nonCycleRels = get_edges_not_in_cycle(temp_cycles, t_graph, r, n_cities)
+				temp_numNonCycleEdges = len(temp_nonCycleRels)
+
+
+				# This condition checks that after an edge is removed, num cycles is reduced, but no more noncycle edges are added.
+				# As a workaround for removing nodes and updating the edges, the new reliability matrix is set to 1 at the removed
+				# edge index. This has the same effect as removing a node when calculating the reliability of a cycle.
+
+				if temp_numCycles < numCycles and temp_numNonCycleEdges <= numNonCycleEdges and r[i][j]!=1:
+					t_r[i][j] = 1
+					count+=1
+
+					# First recursive call. Passes in new graph with removed edge.
+					R1 = (1-r[i][j])*network_reliability(T, t_graph, r, n_cities)
+
+					# Second recursive call. Passes in original graph from this call, with the reliability at this index set to 1.
+					R2 = r[i][j] * network_reliability(G, graph, t_r, n_cities)
+
+					R = R1+R2
+					break
+			else:				# python trick to break from nested loops
+				continue
+			break
+		else:
+			s += 1
+			continue
+		break
+
+	if count == 0: # Count will =0 if the condition never held in the for loop AKA this graph could not be decomposed
+					# Thus graph cannot be further decomposed, and cycles reliabilities should by multiplied together,
+					#along with non cycle reliabilities
+
+		cycleRels = get_cycles_reliability(cycles, r)
+		_, noncycleRels = get_edges_not_in_cycle(cycles, g, r, n_cities)
+
+		for cycle in range(len(cycleRels)):
+			R*= cycleRels[cycle]
+		for edge in range(len(noncycleRels)):
+			R*= noncycleRels[edge]
+
+	return R
 
 
 def find_best_edge(graph, n_cities, r, c):
@@ -118,7 +196,7 @@ def find_best_edge(graph, n_cities, r, c):
 				# 	else:
 				# 		H.add_edge(i, j)
 
-def get_edges(cycle, r):
+def get_cycle_edges(cycle, r):
 	rels = np.zeros(len(cycle))
 	for e in range(len(cycle)):
 		if e == len(cycle)-1:
@@ -134,11 +212,11 @@ def get_edges(cycle, r):
 
 	return rels
 
-def get_edges_not_in_cycle(cycles, graph, r):
+def get_edges_not_in_cycle(cycles, graph, r, numcities):
 	noncycleEdges = np.ones((6,6))
 	for k in range(len(cycles)):
-		for i in range(len(graph[0])):
-			for j in range(len(graph[0])):
+		for i in range(numcities):
+			for j in range(numcities):
 				if i in cycles[k] and j in cycles[k] or graph[i][j]==0:
 					noncycleEdges[i][j]=0
 
@@ -154,9 +232,10 @@ def get_edges_not_in_cycle(cycles, graph, r):
 
 def get_cycles_reliability(cycles, r):
 	l = len(cycles)
+	# print(cycles)
 	rel = np.zeros(l)
 	for i in range(l):
-		edges = get_edges(cycles[i], r)
+		edges = get_cycle_edges(cycles[i], r)
 		# print(edges)
 		# Add reliability for when one edge in cycle does not work
 		for edge in range(len(edges)):
@@ -175,34 +254,48 @@ def get_cycles_reliability(cycles, r):
 		rel[i] += r_it
 	return rel
 
-def find_best(graph, n_cities, r, c):
+def find_best(G, graph, n_cities, r, c):
 
-	cycles = nx.cycle_basis(graph, root=None)
+	cycles = nx.cycle_basis(G, root=None)
 	rel = get_cycles_reliability(cycles, r)
-	noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles,graph, r)
-	print(noncycleEdges)
-	print(noncycleRels)
-	H = graph
+
+	print(rel)
+
+	noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles ,graph, r, n_cities)
+	# print(noncycleEdges)
+	# print(noncycleRels)
+	H = G
+	t_graph = graph
 	cycles = nx.cycle_basis(H, root=None)
 	l = len(cycles)
 	new_r = 0
-	ratio = []
-	best_ratio = 0
+	ratio = np.zeros((6,6))
+	best_ratio, besti, bestj = 0,0,0
+
 	start = 1
-	# r_old = network_reliability(graph, r)
+	r_old = network_reliability(H, t_graph, r, n_cities)
+	print(r_old)
 	#
-	# for i in range(n_cities):
-	# 	for j in range(start, n_cities):
-	# 		r_ = r
-	# 		if graph[i][j] == 1.0:
-	# 			r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
-	# 		else:
-	# 			H.add_edge(i, j)
-	#
-	# 		new_r = network_reliability(graph, r_)
-	# 		ratio[i][j] = new_r-r_old/c[i][j]
-	# 		# if (ratio[i][j]>)
-	# 	start += 1
+	for i in range(n_cities):
+		for j in range(start, n_cities):
+			H = G
+			t_graph = graph
+			r_ = r
+			if graph[i][j] == 1.0:  # If adding parallel edge to already present edge
+				r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
+			else:
+				H.add_edge(i, j)
+
+			new_r = network_reliability(H, t_graph, r_, n_cities)
+			ratio[i][j] = new_r-r_old/c[i][j]
+			if ratio[i][j] > best_ratio:
+				best_ratio = ratio[i][j]
+				besti, bestj = i, j
+		start += 1
+
+	print(besti)
+	print(bestj)
+	print(best_ratio)
 
 
 
@@ -246,22 +339,17 @@ print(rel_mat)
 visited = [False for i in range(n_cities)]
 
 g, r, c = connect(0.9, 50, n_cities, rel_mat, cost_mat, visited)
+G = makeNXgraph(g)
 
-G = nx.Graph()
-for i in range(n_cities):
-	for j in range(n_cities):
-		if g[i][j] == 1.0:
-			G.add_edge(i, j)
 
-print(g)
 G.add_edge(0, 5)
-
+g[0][5] = 1
 print(g)
 print(G)
-print(r)
-print(c)
+# print(r)
+# print(c)
 
-# find_best(G, n_cities, rel_mat, cost_mat)
+find_best(G, g, n_cities, rel_mat, cost_mat)
 
 # G = nx.Graph()
 # G.add_edges_from([[1,2],[2,3],[3,1],[4,5]])
@@ -271,4 +359,24 @@ print(c)
 #   components.append([graph, len(graph)])
 #
 # print(components)
+
+
+
+
+
+# def get_edges_not_in_cycle(cycles, graph, r, numcities):
+# 	noncycleEdges = np.ones((6,6))
+# 	for k in range(len(cycles)):
+# 		for i in range(numcities):
+# 			for j in range(numcities):
+# 				if i in cycles[k] and j in cycles[k] or graph[i][j]==0:
+# 					noncycleEdges[i][j]=0
+#
+# 	rels = []
+# 	for i in range(len(graph[0])):
+# 		for j in range(len(graph[0])):
+# 			if noncycleEdges[i][j]==1:
+# 				rels.append(r[i][j])
+
+
 
