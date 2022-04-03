@@ -189,20 +189,20 @@ def find_best(graph, n_cities, r, c):
 	ratio = []
 	best_ratio = 0
 	start = 1
-	r_old = network_reliability(graph, r)
-
-	for i in range(n_cities):
-		for j in range(start, n_cities):
-			r_ = r
-			if graph[i][j] == 1.0:
-				r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
-			else:
-				H.add_edge(i, j)
-
-			new_r = network_reliability(graph, r_)
-			ratio[i][j] = new_r-r_old/c[i][j]
-			# if (ratio[i][j]>)
-		start += 1
+	# r_old = network_reliability(graph, r)
+	#
+	# for i in range(n_cities):
+	# 	for j in range(start, n_cities):
+	# 		r_ = r
+	# 		if graph[i][j] == 1.0:
+	# 			r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
+	# 		else:
+	# 			H.add_edge(i, j)
+	#
+	# 		new_r = network_reliability(graph, r_)
+	# 		ratio[i][j] = new_r-r_old/c[i][j]
+	# 		# if (ratio[i][j]>)
+	# 	start += 1
 
 
 
@@ -253,6 +253,7 @@ for i in range(n_cities):
 		if g[i][j] == 1.0:
 			G.add_edge(i, j)
 
+print(g)
 G.add_edge(0, 5)
 
 print(g)
