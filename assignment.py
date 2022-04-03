@@ -120,10 +120,10 @@ def network_reliability(G, graph, r, n_cities):
 	for i in range(n_cities):
 		for j in range(s, n_cities):
 			if graph[i][j] == 1.0:
-				T = G
+				T = G.copy()
 				T.remove_edge(i, j)
-				t_graph = graph
-				t_r = r
+				t_graph = graph.copy()
+				t_r = r.copy()
 				t_graph[i][j] = 0
 				temp_cycles = nx.cycle_basis(T, root=None)
 				temp_numCycles = len(temp_cycles)
@@ -147,6 +147,7 @@ def network_reliability(G, graph, r, n_cities):
 
 					R = R1+R2
 					break
+				else: continue
 			else:				# python trick to break from nested loops
 				continue
 			break
@@ -171,7 +172,7 @@ def network_reliability(G, graph, r, n_cities):
 
 
 def find_best_edge(graph, n_cities, r, c):
-	H = graph
+	H = graph.copy()
 	cycles = nx.cycle_basis(H, root=None)
 	l = len(cycles)
 	new_r = []
@@ -213,22 +214,32 @@ def get_cycle_edges(cycle, r):
 	return rels
 
 def get_edges_not_in_cycle(cycles, graph, r, numcities):
-	noncycleEdges = np.ones((6,6))
-	for k in range(len(cycles)):
-		for i in range(numcities):
-			for j in range(numcities):
-				if i in cycles[k] and j in cycles[k] or graph[i][j]==0:
-					noncycleEdges[i][j]=0
-
+	noncycleEdges = np.zeros((6,6))
 	rels = []
-	for i in range(len(graph[0])):
-		for j in range(len(graph[0])):
-			if noncycleEdges[i][j]==1:
-				rels.append(r[i][j])
 
+	if len(cycles) == 0:
+		noncycleEdges = graph.copy()
+
+		for i in range(len(graph[0])):
+			for j in range(len(graph[0])):
+				if noncycleEdges[i][j] == 1:
+					rels.append(r[i][j])
+	else:
+		for k in range(len(cycles)):
+			for i in range(numcities):
+				for j in range(numcities):
+					if i in cycles[k] and j in cycles[k] or graph[i][j]==0 :
+						noncycleEdges[i][j]=1
+
+		for i in range(len(graph[0])):
+			for j in range(len(graph[0])):
+				if noncycleEdges[i][j] == 0:
+					rels.append(r[i][j])
 
 	# print(noncycleEdges)
+	print(rels)
 	return noncycleEdges, rels
+
 
 def get_cycles_reliability(cycles, r):
 	l = len(cycles)
@@ -264,8 +275,8 @@ def find_best(G, graph, n_cities, r, c):
 	noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles ,graph, r, n_cities)
 	# print(noncycleEdges)
 	# print(noncycleRels)
-	H = G
-	t_graph = graph
+	H = G.copy()
+	t_graph = graph.copy()
 	cycles = nx.cycle_basis(H, root=None)
 	l = len(cycles)
 	new_r = 0
@@ -278,13 +289,14 @@ def find_best(G, graph, n_cities, r, c):
 	#
 	for i in range(n_cities):
 		for j in range(start, n_cities):
-			H = G
-			t_graph = graph
-			r_ = r
+			H = G.copy()
+			t_graph = graph.copy()
+			r_ = r.copy()
 			if graph[i][j] == 1.0:  # If adding parallel edge to already present edge
 				r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
 			else:
 				H.add_edge(i, j)
+				t_graph[i][j]=1
 
 			new_r = network_reliability(H, t_graph, r_, n_cities)
 			ratio[i][j] = new_r-r_old/c[i][j]
