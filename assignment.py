@@ -189,14 +189,6 @@ def find_best_edge(graph, n_cities, r, c):
 
 
 
-				# if l > 1:
-				# 	H.remove_edge(i, j)
-				# 	cycles = nx.cycle_basis(H, root=None)
-				# 	if len(cycles) == l-1:
-				# 		continue
-				# 	else:
-				# 		H.add_edge(i, j)
-
 def get_cycle_edges(cycle, r):
 	rels = np.zeros(len(cycle))
 	for e in range(len(cycle)):
@@ -236,8 +228,6 @@ def get_edges_not_in_cycle(cycles, graph, r, numcities):
 				if noncycleEdges[i][j] == 0:
 					rels.append(r[i][j])
 
-	# print(noncycleEdges)
-	print(rels)
 	return noncycleEdges, rels
 
 
@@ -273,15 +263,13 @@ def find_best(G, graph, n_cities, r, c):
 	print(rel)
 
 	noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles ,graph, r, n_cities)
-	# print(noncycleEdges)
-	# print(noncycleRels)
 	H = G.copy()
 	t_graph = graph.copy()
 	cycles = nx.cycle_basis(H, root=None)
 	l = len(cycles)
 	new_r = 0
 	ratio = np.zeros((6,6))
-	best_ratio, besti, bestj = 0,0,0
+	best_ratio, besti, bestj, rest_rel= 0,0,0, 0
 
 	start = 1
 	r_old = network_reliability(H, t_graph, r, n_cities)
@@ -302,12 +290,15 @@ def find_best(G, graph, n_cities, r, c):
 			ratio[i][j] = new_r-r_old/c[i][j]
 			if ratio[i][j] > best_ratio:
 				best_ratio = ratio[i][j]
-				besti, bestj = i, j
+				besti, bestj, best_rel = i, j, new_r
 		start += 1
 
 	print(besti)
 	print(bestj)
 	print(best_ratio)
+	print(new_r)
+
+	return besti, bestj, new_r
 
 
 
@@ -332,7 +323,6 @@ def connect(r, cost, n_cities, rels, costs, visited):
 			visited[ind[edge][1]] = True
 
 	print(graph)
-	# print_graph(graph)
 
 	total_reliability = 1
 	total_cost = 0
@@ -356,10 +346,6 @@ G = makeNXgraph(g)
 
 G.add_edge(0, 5)
 g[0][5] = 1
-print(g)
-print(G)
-# print(r)
-# print(c)
 
 find_best(G, g, n_cities, rel_mat, cost_mat)
 
