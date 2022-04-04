@@ -270,7 +270,7 @@ def find_best(G, graph, n_cities, r, c):
     cycles = nx.cycle_basis(H, root=None)
     l = len(cycles)
     new_r = 0
-    ratio = np.zeros((6, 6))
+    ratio = 0
     best_ratio, besti, bestj, rest_rel = 0, 0, 0, 0
 
     start = 1
@@ -283,22 +283,17 @@ def find_best(G, graph, n_cities, r, c):
             t_graph = graph.copy()
             r_ = r.copy()
             if t_graph[i][j] >= 1.0:  # If adding parallel edge to already present edge
-                r_[i][j] = 2 * r_[i][j] / r_[i][j] ** 2
+                r_[i][j] = (r_[i][j] + rel_mat[i][j]) - (r_[i][j]*rel_mat[i][j])
             else:
                 H.add_edge(i, j)
                 t_graph[i][j] += 1
 
             new_r = network_reliability(H, t_graph, r_, n_cities)
-            ratio[i][j] = new_r - r_old / c[i][j]
-            if ratio[i][j] > best_ratio:
-                best_ratio = ratio[i][j]
+            ratio = (new_r - r_old) / c[i][j]
+            if ratio > best_ratio:
+                best_ratio = ratio
                 besti, bestj, best_rel = i, j, new_r
         start += 1
-
-    # print(besti)
-    # print(bestj)
-    print(best_ratio)
-    # print(new_r)
 
     return besti, bestj, new_r
 
@@ -334,6 +329,86 @@ def connect(n_cities, rels, costs, visited):
                 total_cost += costs[i][j]
 
     return graph, total_reliability, total_cost
+
+def get_edges_from_adj_matrix(am):
+    edges = []
+    for i in range(n_cities):
+        for j in range(n_cities):
+            if am[i, j] == 1:
+                edges.append([i, j])
+    return edges
+
+def calc_cost(am):
+    cost = 0
+    for i in range(n_cities):
+        for j in range(n_cities):
+            if am[i, j] > 0:
+                cost += am[i, j] * cost_mat[i, j]
+    return cost
+
+
+def driver(r_target, cost_target):
+    visited = [False for i in range(n_cities)]
+    # create mst
+    adj_matrix, mst_reliability, mst_cost = connect(n_cities, rel_mat, cost_mat, visited)
+
+
+    if mst_cost > cost_target:
+        print(f"Cities cannot be connected for cost {cost_target}")
+        return
+    if mst_reliability >= r_target:
+        # Have a function to draw graph of network here
+        print("cities can be connected with target reliablility and cost")
+
+    # create nx graph to take advantage of built-in functionality
+    graph_nx = nx.Graph()
+
+    # create an add edge function to iteratively try to add new edges and test if meets reliability/cost goal
+    ''' 
+    possible approach:
+    search for nodes with no edge between them
+    attempt to 
+    '''
+
+    total_R = 1
+    n_R = 0
+    total_C = calc_cost(adj_matrix)
+    edges = get_edges_from_adj_matrix(adj_matrix)
+    graph_nx.add_edges_from(edges)
+    rel_mat_copy = rel_mat.copy()
+    it = 0
+    # cycles = nx.cycle_basis(graph_nx, root=None)
+    # cycles_reliability = get_cycles_reliability(cycles, rel_mat)
+    while total_C <= cost_target and n_R <= r_target:
+        best_i, best_j, n_R = find_best(graph_nx, adj_matrix, n_cities, rel_mat_copy, cost_mat)
+        print("Iteration: "+ str(it))
+        print(best_i, best_j)
+        adj_matrix[best_i, best_j] += 1.0
+
+        if adj_matrix[best_i, best_j] == 1:
+            graph_nx.add_edge(best_i, best_j)
+
+        total_C = calc_cost(adj_matrix)
+        it+=1
+
+    if(total_C > cost_target or n_R < r_target):
+        print("A network can not be made that satisfies the reliability target and cost constraint")
+        print("Total cost: " + str(total_C))
+        print("Network reliability: " + str(n_R))
+    else:
+        print("Total cost: " + str(total_C))
+        print("Network reliability: " + str(n_R))
+
+    print(n_R)
+
+    # get the non-cycle edges and their respective reliabilities
+    # non_cycle_edges, nce_rels = get_edges_not_in_cycle(cycles, adj_matrix, rel_mat, n_cities)
+    # non_cycle_edges = get_edges_from_adj_matrix(non_cycle_edges)
+
+    # print(total_R)
+
+driver(0.999, 10000)
+
 
 
 # print(cost_mat)
@@ -373,72 +448,3 @@ def connect(n_cities, rels, costs, visited):
 # 		for j in range(len(graph[0])):
 # 			if noncycleEdges[i][j]==1:
 # 				rels.append(r[i][j])
-
-
-def get_edges_from_adj_matrix(am):
-    edges = []
-    for i in range(n_cities):
-        for j in range(n_cities):
-            if am[i, j] == 1:
-                edges.append([i, j])
-    return edges
-
-def calc_cost(am):
-    cost = 0
-    for i in range(n_cities):
-        for j in range(n_cities):
-            if am[i, j] > 0:
-                cost += am[i, j] * cost_mat[i, j]
-    return cost
-
-
-def driver(r_target, cost_target):
-    visited = [False for i in range(n_cities)]
-    # create mst
-    adj_matrix, mst_reliability, mst_cost = connect(n_cities, rel_mat, cost_mat, visited)
-
-    if mst_cost > cost_target:
-        print(f"Cities cannot be connected for cost {cost_target}")
-        return
-    if mst_reliability >= r_target:
-        # Have a function to draw graph of network here
-        print("cities can be connected with target reliablility and cost")
-
-    # create nx graph to take advantage of built-in functionality
-    graph_nx = nx.Graph()
-
-    # create an add edge function to iteratively try to add new edges and test if meets reliability/cost goal
-    ''' 
-    possible approach:
-    search for nodes with no edge between them
-    attempt to 
-    '''
-
-    total_R = 1
-    n_R = 0
-    total_C = calc_cost(adj_matrix)
-    edges = get_edges_from_adj_matrix(adj_matrix)
-    graph_nx.add_edges_from(edges)
-
-    # cycles = nx.cycle_basis(graph_nx, root=None)
-    # cycles_reliability = get_cycles_reliability(cycles, rel_mat)
-    while total_C < cost_target and n_R < r_target:
-        best_i, best_j, n_R = find_best(graph_nx, adj_matrix, n_cities, rel_mat, cost_mat)
-        print(best_i, best_j)
-        adj_matrix[best_i, best_j] += 1.0
-
-        if adj_matrix[best_i, best_j] == 1:
-            graph_nx.add_edge(best_i, best_j)
-
-        total_C = calc_cost(adj_matrix)
-        total_R *= n_R
-
-    print(n_R)
-
-    # get the non-cycle edges and their respective reliabilities
-    # non_cycle_edges, nce_rels = get_edges_not_in_cycle(cycles, adj_matrix, rel_mat, n_cities)
-    # non_cycle_edges = get_edges_from_adj_matrix(non_cycle_edges)
-
-    # print(total_R)
-
-driver(0.9, 150)
