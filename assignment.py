@@ -262,7 +262,7 @@ def find_best(G, graph, n_cities, r, c):
     cycles = nx.cycle_basis(G, root=None)
     rel = get_cycles_reliability(cycles, r)
 
-    print(rel)
+    # print(rel)
 
     noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles, graph, r, n_cities)
     H = G.copy()
@@ -274,8 +274,10 @@ def find_best(G, graph, n_cities, r, c):
     best_ratio, besti, bestj, rest_rel = 0, 0, 0, 0
 
     start = 1
+    added_parallel = False
+    best_edge_parallel = False
     r_old = network_reliability(H, t_graph, r, n_cities)
-    print(r_old)
+    # print(r_old)
     #
     for i in range(n_cities):
         for j in range(start, n_cities):
@@ -284,18 +286,21 @@ def find_best(G, graph, n_cities, r, c):
             r_ = r.copy()
             if t_graph[i][j] >= 1.0:  # If adding parallel edge to already present edge
                 r_[i][j] = (r_[i][j] + rel_mat[i][j]) - (r_[i][j]*rel_mat[i][j])
+                added_parallel = True
             else:
                 H.add_edge(i, j)
                 t_graph[i][j] += 1
+                added_parallel = False
 
             new_r = network_reliability(H, t_graph, r_, n_cities)
             ratio = (new_r - r_old) / c[i][j]
             if ratio > best_ratio:
                 best_ratio = ratio
                 besti, bestj, best_rel = i, j, new_r
+                best_edge_parallel = added_parallel
         start += 1
 
-    return besti, bestj, new_r
+    return besti, bestj, best_rel, best_edge_parallel
 
 
 def connect(n_cities, rels, costs, visited):
@@ -380,7 +385,7 @@ def driver(r_target, cost_target):
     # cycles = nx.cycle_basis(graph_nx, root=None)
     # cycles_reliability = get_cycles_reliability(cycles, rel_mat)
     while total_C <= cost_target and n_R <= r_target:
-        best_i, best_j, n_R = find_best(graph_nx, adj_matrix, n_cities, rel_mat_copy, cost_mat)
+        best_i, best_j, n_R, flag = find_best(graph_nx, adj_matrix, n_cities, rel_mat_copy, cost_mat)
         print("Iteration: "+ str(it))
         print(best_i, best_j)
         adj_matrix[best_i, best_j] += 1.0
@@ -388,8 +393,12 @@ def driver(r_target, cost_target):
         if adj_matrix[best_i, best_j] == 1:
             graph_nx.add_edge(best_i, best_j)
 
+        if(flag):
+            rel_mat_copy[best_i][best_j] = (rel_mat_copy[best_i][best_j] + rel_mat[best_i][best_j]) - (rel_mat_copy[best_i][best_j] * rel_mat[best_i][best_j])
+
         total_C = calc_cost(adj_matrix)
         it+=1
+        print("Reliability: " + str(n_R))
 
     if(total_C > cost_target or n_R < r_target):
         print("A network can not be made that satisfies the reliability target and cost constraint")
