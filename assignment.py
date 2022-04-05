@@ -61,7 +61,9 @@ for i in range(n_cities):
     start += 1
 
 
-# Recursive function decomposes a graph into sub graphs
+# Recursive function decomposes a graph into sub graphs.
+# Returns the total reliability of the network
+
 def network_reliability(G, graph, r):
     cycles = nx.cycle_basis(G, root=None)
     _, nonCycleRels = get_edges_not_in_cycle(cycles, graph, r, n_cities)
@@ -213,7 +215,6 @@ def find_best(G, graph, r, c):
     cycles = nx.cycle_basis(G, root=None)
     rel = get_cycles_reliability(cycles, r)
 
-    noncycleEdges, noncycleRels = get_edges_not_in_cycle(cycles, graph, r, n_cities)
     H = G.copy()
     t_graph = graph.copy()
     cycles = nx.cycle_basis(H, root=None)
@@ -226,12 +227,10 @@ def find_best(G, graph, r, c):
     r_old = network_reliability(H, t_graph, r)
     print(r_old)
 
-    # For each edge in reliability matrix, add edge and calculate reliability to cost ratio
+    # For each edge in reliability matrix, add edge and calculate increase in reliability to cost ratio
     added_parallel = False
     best_edge_parallel = False
     r_old = network_reliability(H, t_graph, r)
-    # print(r_old)
-    #
     for i in range(n_cities):
         for j in range(start, n_cities):
             H = G.copy()
